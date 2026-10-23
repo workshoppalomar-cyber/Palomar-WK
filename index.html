@@ -521,6 +521,7 @@ body.gated{overflow:hidden}
       <div class="field"><label for="cuHasta">Hasta</label><input type="date" id="cuHasta"></div>
       <button class="btn ghost" id="cuClear" type="button">Limpiar</button>
     </div>
+    <div class="toolbar"><div class="inf"></div><div class="grp"><button class="btn" id="cuXlsx" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5l5-5"/><path d="M12 4v12"/></svg>Descargar Excel</button></div></div>
     <div class="stuckleg"><span><span class="sdot c1"></span>Demorado: 7 o más días sin movimiento</span><span><span class="sdot c2"></span>Trabado: 14 o más días</span></div>
     <div class="tablecard">
       <div class="tcaption">Vehículos en curso <span class="cnt" id="cuCursoCnt"></span></div>
@@ -542,6 +543,7 @@ body.gated{overflow:hidden}
       <div class="field"><label for="spHasta">Hasta</label><input type="date" id="spHasta"></div>
       <button class="btn ghost" id="spClear" type="button">Limpiar</button>
     </div>
+    <div class="toolbar"><div class="inf"></div><div class="grp"><button class="btn" id="spXlsx" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5l5-5"/><path d="M12 4v12"/></svg>Descargar Excel</button></div></div>
     <div class="stuckleg"><span><span class="sdot c1"></span>Demorado: 3 o más días sin proceso</span><span><span class="sdot c2"></span>Trabado: 7 o más días</span></div>
     <div class="tablecard">
       <div class="tablescroll"><table class="data" id="spTable"></table></div>
@@ -1105,13 +1107,16 @@ document.getElementById('cuSearch').addEventListener('input',renderCurso);
 document.getElementById('cuClear').addEventListener('click',()=>{['cuSearch','cuProc','cuOp','cuDesde','cuHasta'].forEach(id=>document.getElementById(id).value='');renderCurso();});
 
 /* ============ SIN PROCESO ============ */
-function renderSinProc(){
+function sinProcData(){
   const y=+document.getElementById('spYear').value,q=document.getElementById('spSearch').value.trim().toUpperCase();
   const fr=dv('spDesde'),to=dv('spHasta');
   let u=latestByVis(records.filter(r=>inUnits(r)&&r.year===y&&inRange(r.fecha,fr,to)));u.forEach(x=>x._st=statusOf(x.pcode,x.sub));
   let sin=u.filter(x=>x._st==='sin');
   if(q)sin=sin.filter(x=>(x.vis||'').toUpperCase().includes(q));
-  sin.sort((a,b)=>daysSince(b.fecha)-daysSince(a.fecha));
+  return sin.sort((a,b)=>daysSince(b.fecha)-daysSince(a.fecha));
+}
+function renderSinProc(){
+  const sin=sinProcData();
   document.getElementById('spBig').textContent=sin.length;
   document.getElementById('spTable').innerHTML='<thead><tr><th>VIS</th><th>Fecha de ingreso</th><th class="r">Días sin proceso</th><th>Comentario</th></tr></thead><tbody>'+
     (sin.map(x=>{const ds=daysSince(x.fecha);const sl=stuckLevel(ds,7,3);return `<tr class="${sl?('stuck'+sl):''}"><td class="vis">${esc(x.vis||'-')}</td><td>${fmtLong(x.fecha)}</td><td class="r">${ds}${sdot(sl)}</td><td class="cmcell">${commentsCell(x.vis)}</td></tr>`;}).join('')||'<tr><td colspan="4">'+emptyState('No hay pendientes sin proceso','Todos los ingresos del período ya tienen una acción cargada.')+'</td></tr>')+'</tbody>';
@@ -1247,13 +1252,25 @@ document.getElementById('rXlsx').addEventListener('click',()=>{
   // Id numerico, Hora de inicio/finalizacion con hora, FECHA DE ACCION como fecha
   saveBlob(xlsxTable(mat,{0:'n',1:'dt',2:'dt',11:'d'}),'GESTION_VEHICULOS_WORKSHOP_'+new Date().toISOString().slice(0,10)+'.xlsx');
 });
+function ingMatrix(arr){return [['Id','Hora de inicio','Hora de finalización','Correo electrónico','Nombre','INGRESE N° DE VIS ','FECHA INGRESO A GIRO WORKSHOP']]
+    .concat(arr.map((r,i)=>[r.ingId!=null?r.ingId:(i+1),r.ini||r.ts||'',r.tf||r.ini||r.ts||'',r.email||'',r.op||'',r.vis||'',r.fecha||'']));}
+function saveIng(arr,fname){saveBlob(xlsxTable(ingMatrix(arr),{0:'n',1:'dt',2:'dt',6:'d'}),fname);}
+function saveCurso(arr,fname){saveBlob(xlsxTable(exportMatrix(arr),{0:'n',1:'dt',2:'dt',11:'d'}),fname);}
 document.getElementById('rXlsxIng').addEventListener('click',()=>{
   const y=+dv('rYear'),fr=dv('rDesde'),to=dv('rHasta');
   const arr=records.filter(r=>r.pcode==='SIN'&&r.year===y&&inRange(r.fecha,fr,to)).sort((a,b)=>(a.ts||'')<(b.ts||'')?-1:1);
-  const mat=[['Id','Hora de inicio','Hora de finalización','Correo electrónico','Nombre','INGRESE N° DE VIS ','FECHA INGRESO A GIRO WORKSHOP']]
-    .concat(arr.map((r,i)=>[r.ingId!=null?r.ingId:(i+1),r.ini||r.ts||'',r.tf||r.ini||r.ts||'',r.email||'',r.op||'',r.vis||'',r.fecha||'']));
   const m=document.getElementById('rMore');if(m)m.open=false;
-  saveBlob(xlsxTable(mat,{0:'n',1:'dt',2:'dt',6:'d'}),'REGISTRO_INGRESO_VEHICULO_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  saveIng(arr,'REGISTRO_INGRESO_VEHICULO_'+new Date().toISOString().slice(0,10)+'.xlsx');
+});
+document.getElementById('cuXlsx').addEventListener('click',()=>{
+  const arr=cursoData();
+  if(!arr.length){showToast('No hay vehículos para exportar');return;}
+  saveCurso(arr,'GESTION_VEHICULOS_WORKSHOP_EN_CURSO_'+new Date().toISOString().slice(0,10)+'.xlsx');
+});
+document.getElementById('spXlsx').addEventListener('click',()=>{
+  const arr=sinProcData();
+  if(!arr.length){showToast('No hay pendientes para exportar');return;}
+  saveIng(arr,'REGISTRO_INGRESO_VEHICULO_SIN_PROCESO_'+new Date().toISOString().slice(0,10)+'.xlsx');
 });
 const rMore=document.getElementById('rMore');
 rMore.addEventListener('click',e=>{if(e.target.closest('.mi'))setTimeout(()=>rMore.open=false,0);});
